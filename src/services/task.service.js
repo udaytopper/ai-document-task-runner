@@ -1,6 +1,7 @@
 const { randomUUID } = require("crypto");
 const detectCycle = require("../utils/cycle-detector");
 const taskRepository = require("../repositories/task.repository");
+const TASK_STATUS = require("../constants/task-status");
 
 function createValidationError(message) {
   const error = new Error(message);
@@ -158,7 +159,90 @@ function submitTasks(inputTasks) {
   }));
 }
 
+const validStatuses = new Set(Object.values(TASK_STATUS));
+
+function createNotFoundError(message) {
+  const error = new Error(message);
+  error.statusCode = 404;
+  return error;
+}
+
+function mapTask(task) {
+  return {
+    id: task.id,
+    name: task.name,
+    status: task.status,
+    durationMs: task.duration_ms,
+    failureProbability: task.failure_probability,
+    attemptCount: task.attempt_count,
+    maxRetries: task.max_retries,
+    nextAttemptAt: task.next_attempt_at,
+    errorMessage: task.error_message,
+    createdAt: task.created_at,
+    startedAt: task.started_at,
+    completedAt: task.completed_at,
+    updatedAt: task.updated_at,
+  };
+}
+
+function getAllTasks(status) {
+  if (status && !validStatuses.has(status)) {
+    throw createValidationError(
+      `Invalid status. Allowed values: ${[...validStatuses].join(", ")}`
+    );
+  }
+
+  return taskRepository.findAllTasks(status).map(mapTask);
+}
+
+function getTaskById(taskId) {
+  const task = taskRepository.findTaskById(taskId);
+
+  if (!task) {
+    throw createNotFoundError(`Task not found: ${taskId}`);
+  }
+
+  const dependencies = taskRepository
+    .findDependencies(taskId)
+    .map((dependency) => ({
+      id: dependency.id,
+      name: dependency.name,
+      status: dependency.status,
+    }));
+
+  return {
+    ...mapTask(task),
+    dependencies,
+  };
+}
+
+function getTaskEvents(taskId) {
+  const task = taskRepository.findTaskById(taskId);
+
+  if (!task) {
+    throw createNotFoundError(`Task not found: ${taskId}`);
+  }
+
+  const events = taskRepository.findEvents(taskId).map((event) => ({
+    id: event.id,
+    eventType: event.event_type,
+    fromStatus: event.from_status,
+    toStatus: event.to_status,
+    message: event.message,
+    createdAt: event.created_at,
+  }));
+
+  return {
+    taskId,
+    taskName: task.name,
+    events,
+  };
+}
+
 module.exports = {
   submitTasks,
   validateTasks,
+  getAllTasks,
+  getTaskById,
+  getTaskEvents,
 };

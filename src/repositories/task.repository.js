@@ -37,6 +37,30 @@ const insertEventStatement = database.prepare(`
   VALUES (?, ?, ?, ?, ?, ?)
 `);
 
+const findTaskByIdStatement = database.prepare(`
+  SELECT *
+  FROM tasks
+  WHERE id = ?
+`);
+
+const findDependenciesStatement = database.prepare(`
+  SELECT
+    t.id,
+    t.name,
+    t.status
+  FROM task_dependencies td
+  JOIN tasks t ON t.id = td.dependency_id
+  WHERE td.task_id = ?
+  ORDER BY t.created_at ASC
+`);
+
+const findEventsStatement = database.prepare(`
+  SELECT *
+  FROM task_events
+  WHERE task_id = ?
+  ORDER BY id ASC
+`);
+
 function createTasks(tasks) {
   const insertTransaction = database.transaction((taskList) => {
     for (const task of taskList) {
@@ -70,7 +94,18 @@ function createTasks(tasks) {
   insertTransaction(tasks);
 }
 
-function findAllTasks() {
+function findAllTasks(status) {
+  if (status) {
+    return database
+      .prepare(`
+        SELECT *
+        FROM tasks
+        WHERE status = ?
+        ORDER BY created_at ASC
+      `)
+      .all(status);
+  }
+
   return database
     .prepare(`
       SELECT *
@@ -80,7 +115,22 @@ function findAllTasks() {
     .all();
 }
 
+function findTaskById(taskId) {
+  return findTaskByIdStatement.get(taskId);
+}
+
+function findDependencies(taskId) {
+  return findDependenciesStatement.all(taskId);
+}
+
+function findEvents(taskId) {
+  return findEventsStatement.all(taskId);
+}
+
 module.exports = {
   createTasks,
   findAllTasks,
+  findTaskById,
+  findDependencies,
+  findEvents,
 };
