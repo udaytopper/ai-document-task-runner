@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest --runInBand",
+    "test:coverage": "jest --coverage --runInBand"
   },
   "repository": {
     "type": "git",
@@ -17,5 +20,15 @@
   "bugs": {
     "url": "https://github.com/udaytopper/ai-document-task-runner/issues"
   },
-  "homepage": "https://github.com/udaytopper/ai-document-task-runner#readme"
+  "homepage": "https://github.com/udaytopper/ai-document-task-runner#readme",
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
+  }
 }
