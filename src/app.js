@@ -1,8 +1,9 @@
 const express = require("express");
+const taskRoutes = require("./routes/task.routes");
 
 const app = express();
 
-app.use(express.json());
+app.use(express.json({ limit: "100kb" }));
 
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -10,6 +11,8 @@ app.get("/health", (req, res) => {
     service: "AI Document Processing Task Runner",
   });
 });
+
+app.use("/api/tasks", taskRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
