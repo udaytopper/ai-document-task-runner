@@ -20,26 +20,36 @@ function calculateBackoffDelay(attemptCount) {
   );
 }
 
-/*
- * A configurable failure probability of:
- *
- * 0   -> always succeeds
- * 1   -> always fails
- * 0.2 -> approximately 20% of attempts fail
- */
+function calculateSimulatedDuration(durationMs) {
+  const minimumDuration = Math.max(
+    1,
+    Math.floor(durationMs * 0.5)
+  );
+
+  const durationRange =
+    durationMs - minimumDuration + 1;
+
+  return (
+    minimumDuration +
+    Math.floor(Math.random() * durationRange)
+  );
+}
+
 async function simulateTask(task) {
-  await sleep(task.duration_ms);
+  const simulatedDuration =
+    calculateSimulatedDuration(task.duration_ms);
 
-  const shouldFail =
-    Math.random() < task.failure_probability;
+  await sleep(simulatedDuration);
 
-  if (shouldFail) {
+  if (Math.random() < task.failure_probability) {
     throw new Error(
       "Simulated document-processing failure"
     );
   }
 
-  return true;
+  return {
+    durationMs: simulatedDuration,
+  };
 }
 
 async function executeTask(task) {
@@ -242,6 +252,7 @@ function stopTaskRunner() {
 
 module.exports = {
   calculateBackoffDelay,
+  calculateSimulatedDuration,
   simulateTask,
   executeTask,
   scheduleReadyTasks,
