@@ -33,7 +33,7 @@ The actual document-processing work is simulated so the focus stays on task sche
 
 ## Requirements
 
-* Node.js 22 or newer
+* Node.js 22 LTS
 * npm
 
 ## Setup
