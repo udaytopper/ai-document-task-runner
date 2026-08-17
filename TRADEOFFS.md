@@ -1,22 +1,39 @@
 # Trade-offs
 
-## 1. SQLite instead of MySQL or PostgreSQL
+This project intentionally keeps the architecture small. The goal was to build a correct and explainable task runner within the assignment scope rather than introduce infrastructure that the problem did not require.
+
+## 1. SQLite instead of PostgreSQL or MySQL
 
 ### Selected
 
-SQLite with `better-sqlite3`.
+SQLite using `better-sqlite3`.
 
 ### Alternative
 
-A separate MySQL or PostgreSQL server.
+Run PostgreSQL or MySQL as a separate database service.
 
-### Reason
+### Why I chose SQLite
 
-SQLite provides persistent storage without requiring the reviewer to install or configure another service. This keeps clean-clone setup short and allows task state, dependencies and events to be stored transactionally.
+The runner needs persistent task state, relationships and transactions, but it does not need a distributed database for the assignment.
 
-### Downside
+SQLite gives the project durable storage while keeping setup simple:
 
-SQLite is not the best choice for many service instances writing concurrently. A production distributed runner would likely use PostgreSQL with row locking or a dedicated queue.
+```bash
+npm install
+npm start
+```
+
+A reviewer does not need to install a database server, create credentials or configure another service.
+
+SQLite transactions are also sufficient for storing workflows and claiming tasks safely within the single-process architecture.
+
+### Trade-off
+
+SQLite is not the database I would choose for a task runner with many application instances writing concurrently.
+
+A larger version of this system would likely move task state to PostgreSQL and use database locking or a dedicated work queue.
+
+---
 
 ## 2. Polling scheduler instead of a message queue
 
@@ -28,46 +45,92 @@ A scheduler that checks SQLite at a configurable interval.
 
 Redis with BullMQ, RabbitMQ, SQS or another message broker.
 
-### Reason
+### Why I chose polling
 
-Polling keeps the project small, makes task selection rules visible in the code and avoids requiring additional infrastructure. It is appropriate for the assignment’s single-service scope.
+The assignment focuses on dependency handling, concurrency, retries and failure recovery.
 
-### Downside
+A polling scheduler keeps those rules visible in the application code instead of delegating important behavior to another system.
 
-Polling creates repeated database queries even when no work exists. It also adds up to one polling interval of scheduling delay.
+It also keeps the project easy to run from a clean clone and avoids introducing infrastructure only for the sake of appearing more production-like.
 
-## 3. FIFO instead of priority scheduling
+For a small single-service runner, the approach is sufficient.
 
-### Selected
+### Trade-off
 
-Ready tasks run in order of creation time and SQLite insertion order.
+Polling performs database queries even when no work is available.
 
-### Alternative
+It also introduces scheduling latency of up to approximately one polling interval.
 
-A priority queue, shortest-job-first scheduling or explicit task priorities.
+At higher scale, an event-driven queue would use resources more efficiently and would make it easier to distribute work across multiple workers.
 
-### Reason
+---
 
-FIFO is deterministic, fair to older tasks and easy to test and explain.
-
-### Downside
-
-A long-running old task can run before a short urgent task. There is no way for an important task to move ahead of the queue.
-
-## 4. At-least-once instead of exactly-once execution
+## 3. FIFO scheduling instead of priorities
 
 ### Selected
 
-Tasks interrupted by a restart return to `WAITING` and execute again.
+Ready tasks are ordered by:
+
+```text
+created_at ASC, rowid ASC
+```
 
 ### Alternative
 
-Mark interrupted tasks permanently failed, or build an exactly-once coordination mechanism.
+Priority scheduling, shortest-job-first scheduling, deadlines, or separate queues.
 
-### Reason
+### Why I chose FIFO
 
-Re-executing interrupted tasks prevents unfinished work from being silently lost. It is simple and reliable for this simulated runner.
+FIFO is predictable.
 
-### Downside
+Older ready work is handled before newer work, and the ordering is deterministic when tasks are created at the same time.
 
-A task may execute twice if its work completed just before a crash but the successful status was not saved. Real task handlers would need to be idempotent.
+It is also easy to test and easy to explain during review.
+
+For this assignment, I preferred a simple scheduling policy whose behavior is obvious over a more sophisticated policy with additional configuration.
+
+### Trade-off
+
+FIFO cannot represent urgency.
+
+For example, a long-running task submitted earlier can occupy a slot before a newer one-second task that is much more important.
+
+A real system might add task priority or deadline information.
+
+---
+
+## 4. At-least-once execution instead of exactly-once execution
+
+### Selected
+
+If the service restarts while a task is `RUNNING`, that task is returned to `WAITING` and executed again.
+
+### Alternative
+
+Treat interrupted tasks as failed, or introduce coordination intended to provide exactly-once execution.
+
+### Why I chose at-least-once
+
+After a process crash, the runner cannot know with certainty whether an interrupted task finished its external work before the process stopped.
+
+Re-running the task avoids silently losing unfinished work.
+
+It also gives restart behavior that is simple to understand:
+
+```text
+RUNNING
+   ↓ service stops
+WAITING
+   ↓
+execute again
+```
+
+For this project, preventing lost work is more useful than trying to simulate exactly-once guarantees that the system cannot truly provide.
+
+### Trade-off
+
+Duplicate execution is possible.
+
+A task may finish its real-world operation and then crash before its `SUCCEEDED` state is persisted. When the service restarts, that task will run again.
+
+A production implementation should therefore make task handlers idempotent where practical, for example by using operation identifiers or checking whether the expected output already exists.
