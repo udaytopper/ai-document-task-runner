@@ -2,6 +2,7 @@ const { randomUUID } = require("crypto");
 const detectCycle = require("../utils/cycle-detector");
 const taskRepository = require("../repositories/task.repository");
 const TASK_STATUS = require("../constants/task-status");
+const config = require("../config");
 
 function createValidationError(message) {
   const error = new Error(message);
@@ -167,6 +168,12 @@ function createNotFoundError(message) {
   return error;
 }
 
+function createConflictError(message) {
+  const error = new Error(message);
+  error.statusCode = 409;
+  return error;
+}
+
 function mapTask(task) {
   return {
     id: task.id,
@@ -188,7 +195,9 @@ function mapTask(task) {
 function getAllTasks(status) {
   if (status && !validStatuses.has(status)) {
     throw createValidationError(
-      `Invalid status. Allowed values: ${[...validStatuses].join(", ")}`
+      `Invalid status. Allowed values: ${[
+        ...validStatuses,
+      ].join(", ")}`
     );
   }
 
@@ -239,10 +248,48 @@ function getTaskEvents(taskId) {
   };
 }
 
+function cancelTask(taskId) {
+  const cancelledAt = new Date().toISOString();
+
+  const result = taskRepository.cancelTask(
+    taskId,
+    cancelledAt
+  );
+
+  if (result.outcome === "NOT_FOUND") {
+    throw createNotFoundError(`Task not found: ${taskId}`);
+  }
+
+  if (result.outcome === "NOT_ALLOWED") {
+    throw createConflictError(
+      `Task cannot be cancelled while its status is ${result.status}`
+    );
+  }
+
+  return getTaskById(taskId);
+}
+
+function getStats() {
+  const counts = taskRepository.getTaskStatusCounts();
+
+  return {
+    running: counts[TASK_STATUS.RUNNING],
+    waiting: counts[TASK_STATUS.WAITING],
+    retryWaiting: counts[TASK_STATUS.RETRY_WAIT],
+    succeeded: counts[TASK_STATUS.SUCCEEDED],
+    failed: counts[TASK_STATUS.FAILED],
+    blocked: counts[TASK_STATUS.BLOCKED],
+    cancelled: counts[TASK_STATUS.CANCELLED],
+    concurrencyLimit: config.concurrencyLimit,
+  };
+}
+
 module.exports = {
   submitTasks,
   validateTasks,
   getAllTasks,
   getTaskById,
   getTaskEvents,
+  cancelTask,
+  getStats,
 };

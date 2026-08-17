@@ -1,5 +1,6 @@
 const express = require("express");
 const taskRoutes = require("./routes/task.routes");
+const taskController = require("./controllers/task.controller");
 
 const app = express();
 
@@ -11,6 +12,8 @@ app.get("/health", (req, res) => {
     service: "AI Document Processing Task Runner",
   });
 });
+
+app.get("/api/stats", taskController.getStats);
 
 app.use("/api/tasks", taskRoutes);
 
