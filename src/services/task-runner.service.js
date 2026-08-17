@@ -195,23 +195,36 @@ function startTaskRunner() {
     return;
   }
 
+  const recoveredAt = new Date().toISOString();
+
+  const recoveredTasks =
+    taskRepository.recoverRunningTasks(recoveredAt);
+
+  if (recoveredTasks.length > 0) {
+    console.log(
+      `Recovered ${recoveredTasks.length} interrupted task(s)`
+    );
+  }
+
   console.log(
     "Task runner started with " +
       `concurrency limit ${config.concurrencyLimit} ` +
       `and polling interval ${config.schedulerIntervalMs} ms`
   );
 
-  /*
-   * Run immediately so the service does not need to wait for the first
-   * polling interval.
-   */
   scheduleReadyTasks().catch((error) => {
-    console.error("Initial scheduler cycle failed:", error);
+    console.error(
+      "Initial scheduler cycle failed:",
+      error
+    );
   });
 
   schedulerInterval = setInterval(() => {
     scheduleReadyTasks().catch((error) => {
-      console.error("Scheduled runner cycle failed:", error);
+      console.error(
+        "Scheduled runner cycle failed:",
+        error
+      );
     });
   }, config.schedulerIntervalMs);
 }

@@ -50,9 +50,34 @@ function getTaskEvents(req, res, next) {
   }
 }
 
+function cancelTask(req, res, next) {
+  try {
+    const task = taskService.cancelTask(req.params.id);
+
+    return res.status(200).json({
+      message: "Task cancelled successfully",
+      task,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+function getStats(req, res, next) {
+  try {
+    const stats = taskService.getStats();
+
+    return res.status(200).json(stats);
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   submitTasks,
   getAllTasks,
   getTaskById,
   getTaskEvents,
+  cancelTask,
+  getStats,
 };
